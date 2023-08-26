@@ -1,9 +1,9 @@
 import pandas as pd
 
 # Carregar os dados das planilhas
-planilha_2 = pd.read_excel("data/planilha_2.xlsx")
-planilha_3 = pd.read_excel("data/planilha_3.xlsx")
-planilha_regras = pd.read_excel("data/planilha_regras.xlsx")
+planilha_2 = pd.read_excel("data/perfis.xlsx")
+planilha_3 = pd.read_excel("data/recursos.xlsx")
+planilha_regras = pd.read_excel("data/regras.xlsx")
 
 def get_fa_and_qtd_max(perfil, recursos):
     perfil_fa = planilha_2.loc[planilha_2["Participante"] == perfil, "Facil_acesso"].values[0]
@@ -22,7 +22,7 @@ def display_rules():
         print(planilha_regras)
 
 def save_to_excel():
-    planilha_regras.to_excel("data/planilha_regras.xlsx", index=False)
+    planilha_regras.to_excel("data/regras.xlsx", index=False)
 
 def create_rule():
     print("\nSelecione o perfil:")
@@ -31,11 +31,15 @@ def create_rule():
     perfil_choice = int(input("Escolha o número do perfil: ")) - 1
     selected_perfil = planilha_2.loc[perfil_choice, "Participante"]
 
-    print("\nSelecione os recursos:")
+    # Modificação para tornar a seleção de recursos opcional
+    print("\nSelecione os recursos (ou pressione Enter para pular):")
     for idx, recurso in enumerate(planilha_3["Recurso"], 1):
         print(f"{idx}. {recurso}")
-    recursos_choice = input("Escolha os números dos recursos, separados por vírgula: ").split(',')
-    selected_recursos = [planilha_3.loc[int(choice) - 1, "Recurso"] for choice in recursos_choice]
+    recursos_choice = input("Escolha os números dos recursos, separados por vírgula (ou pressione Enter para pular): ")
+    selected_recursos = []
+    if recursos_choice:
+        recursos_choice = recursos_choice.split(',')
+        selected_recursos = [planilha_3.loc[int(choice) - 1, "Recurso"] for choice in recursos_choice]
 
     # Getting the 'Facil_acesso' and 'Regra' based on the selection
     fa, qtd_max = get_fa_and_qtd_max(selected_perfil, selected_recursos)
@@ -43,11 +47,13 @@ def create_rule():
     selected_juncao = []
     if qtd_max > 1:
         # Selecionando a junção (com quais perfis pode ser ensalado)
-        print("\nSelecione com quais perfis pode ser ensalado:")
+        print("\nSelecione com quais perfis pode ser ensalado (ou pressione Enter para pular):")
         for idx, perfil in enumerate(planilha_2["Participante"], 1):
             print(f"{idx}. {perfil}")
-        juncao_choice = input("Escolha os números dos perfis, separados por vírgula: ").split(',')
-        selected_juncao = [planilha_2.loc[int(choice) - 1, "Participante"] for choice in juncao_choice]
+        juncao_choice = input("Escolha os números dos perfis, separados por vírgula (ou pressione Enter para pular): ")
+        if juncao_choice:
+            juncao_choice = juncao_choice.split(',')
+            selected_juncao = [planilha_2.loc[int(choice) - 1, "Participante"] for choice in juncao_choice]
 
     # Creating a new rule
     new_rule = {
@@ -58,7 +64,7 @@ def create_rule():
         "Juncao": ", ".join(selected_juncao)
     }
 
-        # Mostrando o resumo da regra
+    # Mostrando o resumo da regra
     print("\nResumo da regra:")
     print(f"Perfil: {new_rule['Perfil']}")
     print(f"Recurso(s): {new_rule['Recurso(s)']}")
@@ -90,14 +96,12 @@ def edit_rule():
     print("Regra editada com sucesso!")
 
 def delete_rule():
-    global planilha_regras  # Declare global at the beginning of the function
     display_rules()
     rule_to_delete = int(input("Digite o número da regra que deseja excluir: "))
     planilha_regras.drop(index=rule_to_delete, inplace=True)
     planilha_regras.reset_index(drop=True, inplace=True)
-    # Salvando o DataFrame atualizado de volta no arquivo Excel
-    planilha_regras.to_excel("C:/Users/lucas.ribeiro/ensalamento_modular/data/planilha_regras.xlsx", index=False)
-    print("\n--- Regra excluída com sucesso! ---")
+    save_to_excel()
+    print("\nRegra excluída com sucesso!")
 
 def main_menu():
     while True:
