@@ -1,4 +1,6 @@
 import pandas as pd
+import time
+import os
 
 # Carregar os dados das planilhas
 planilha_2 = pd.read_excel("data/perfis.xlsx")
@@ -16,9 +18,13 @@ def get_fa_and_qtd_max(perfil, recursos):
 
 def display_rules():
     if planilha_regras.empty:
-        print("Nenhuma regra cadastrada.")
+        print("--- Nenhuma regra cadastrada ---")
+        time.sleep(3)
+        os.system('cls' if os.name == 'nt' else 'clear')
     else:
         print("Regras cadastradas:")
+        time.sleep(3)
+        os.system('cls' if os.name == 'ns' else 'clear')
         print(planilha_regras)
 
 def save_to_excel():
@@ -64,40 +70,66 @@ def create_rule():
         "Juncao": ", ".join(selected_juncao)
     }
 
+    os.system('cls' if os.name == 'nt' else 'clear')
+
     # Mostrando o resumo da regra
     print("\nResumo da regra:")
-    print(f"Perfil: {new_rule['Perfil']}")
+    print(f"\nPerfil: {new_rule['Perfil']}")
     print(f"Recurso(s): {new_rule['Recurso(s)']}")
     print(f"Facil_acesso: {new_rule['Facil_acesso']}")
     print(f"Regra: {new_rule['Regra']}")
     print(f"Juncao: {new_rule['Juncao']}")
 
-    confirmation = input("Deseja salvar esta regra? (s/n): ").strip().lower()
+    confirmation = input("\nDeseja salvar esta regra? (s/n): ").strip().lower()
     if confirmation == 's':
         # Adicionando a nova regra ao DataFrame
         planilha_regras.loc[len(planilha_regras)] = new_rule
         save_to_excel()
-        print("\nRegra criada e salva com sucesso!")
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n--- Regra criada e salva com sucesso! ---")
+        time.sleep(3)
+        os.system('cls' if os.name == 'nt' else 'clear')
     else:
+        os.system('cls' if os.name == 'nt' else 'clear')
         print("\nCriação de regra cancelada.")
+        time.sleep(2)
+        os.system('cls' if os.name == 'nt' else 'clear')
 
 def edit_rule():
+
+    if planilha_regras.empty:
+        print("\n--- Nenhuma regra cadastrada ---")
+        time.sleep(3)
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+        return
     display_rules()
-    rule_to_edit = int(input("Digite o número da regra que deseja editar: ")) - 1
+    rule_to_edit = int(input("\nDigite o número da regra que deseja editar: "))
     print("Editando a regra:")
     print(planilha_regras.loc[rule_to_edit])
 
     # Reusing create_rule function to edit the selected rule
     create_rule()
+    os.system('cls' if os.name == 'nt' else 'clear')
 
     # Removing the old rule
     planilha_regras.drop(index=rule_to_edit, inplace=True)
     save_to_excel()
-    print("Regra editada com sucesso!")
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print("\n--- Regra editada com sucesso! ---")
+    time.sleep(3)
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 def delete_rule():
+    
+    if planilha_regras.empty:
+        print("\n--- Nenhuma regra cadastrada ---")
+        time.sleep(3)
+        os.system('cls' if os.name == 'nt' else 'clear')
+        return
+    
     display_rules()
-    rule_to_delete = int(input("Digite o número da regra que deseja excluir: "))
+    rule_to_delete = int(input("\nDigite o número da regra que deseja excluir: "))
     planilha_regras.drop(index=rule_to_delete, inplace=True)
     planilha_regras.reset_index(drop=True, inplace=True)
     save_to_excel()
@@ -114,14 +146,20 @@ def main_menu():
         choice = input("Escolha uma opção: ")
 
         if choice == '1':
+            os.system('cls' if os.name == 'nt' else 'clear')
             display_rules()
         elif choice == '2':
+            os.system('cls' if os.name == 'nt' else 'clear')
             create_rule()
         elif choice == '3':
+            os.system('cls' if os.name == 'nt' else 'clear')
             edit_rule()
         elif choice == '4':
+            os.system('cls' if os.name == 'nt' else 'clear')
             delete_rule()
         elif choice == '5':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print("\nSAINDO...")
             break
         else:
             print("Opção inválida! Tente novamente.")
