@@ -31,6 +31,15 @@ def save_to_excel():
     planilha_regras.to_excel("data/regras.xlsx", index=False)
 
 def create_rule():
+    global planilha_regras
+
+    # Verifique se a coluna "ID" existe e crie-a se não existir
+    if 'ID' not in planilha_regras.columns:
+        planilha_regras['ID'] = [None for _ in range(len(planilha_regras))]
+    
+    # Determinar o último ID utilizado
+    last_id = planilha_regras['ID'].max() if not planilha_regras['ID'].isnull().all() else 0
+
     print("\nSelecione o perfil:")
     for idx, perfil in enumerate(planilha_2["Participante"], 1):
         print(f"{idx}. {perfil}")
@@ -61,10 +70,12 @@ def create_rule():
             juncao_choice = juncao_choice.split(',')
             selected_juncao = [planilha_2.loc[int(choice) - 1, "Participante"] for choice in juncao_choice]
 
-    # Creating a new rule
+    # Incrementando o ID e adicionando à regra
+    last_id += 1
     new_rule = {
+        "ID": last_id,
         "Perfil": selected_perfil,
-        "Recurso(s)": ", ".join(selected_recursos),
+        "Recursos": ", ".join(selected_recursos),
         "Facil_acesso": fa,
         "Regra": qtd_max,
         "Juncao": ", ".join(selected_juncao)
@@ -74,8 +85,9 @@ def create_rule():
 
     # Mostrando o resumo da regra
     print("\nResumo da regra:")
-    print(f"\nPerfil: {new_rule['Perfil']}")
-    print(f"Recurso(s): {new_rule['Recurso(s)']}")
+    print(f"\nID: {new_rule['ID']}")
+    print(f"Perfil: {new_rule['Perfil']}")
+    print(f"Recursos: {new_rule['Recursos']}")
     print(f"Facil_acesso: {new_rule['Facil_acesso']}")
     print(f"Regra: {new_rule['Regra']}")
     print(f"Juncao: {new_rule['Juncao']}")
@@ -84,6 +96,8 @@ def create_rule():
     if confirmation == 's':
         # Adicionando a nova regra ao DataFrame
         planilha_regras.loc[len(planilha_regras)] = new_rule
+        # Reordenando as colunas para que o ID seja a primeira coluna
+        planilha_regras = planilha_regras[['ID'] + [col for col in planilha_regras if col != 'ID']]
         save_to_excel()
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n--- Regra criada e salva com sucesso! ---")
