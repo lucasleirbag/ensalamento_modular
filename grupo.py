@@ -1,11 +1,75 @@
 import pandas as pd
 import os
 
-# Carregando a planilha de regras
 regras_df = pd.read_excel("data/regras.xlsx")
+
+def criar_grupo_modified(self):
+    print("\nRegras disponíveis:")
+    print(regras_df[['ID', 'Perfil', 'Regra']])
+    regras = input("Digite os IDs das regras que deseja agrupar (separados por vírgula): ").split(',')
+    regras = [int(r.strip()) for r in regras]
+    novo_id = len(self.grupos) + 1
+    regras_selecionadas = regras_df[regras_df['ID'].isin(regras)]
+    recursos = regras_selecionadas['Recursos'].unique()
+    facil_acesso = any(regras_selecionadas['Facil_acesso'] == "FA")
+    valor_regra = regras_selecionadas['Regra'].min()
+    perfil_grupo = ', '.join(regras_selecionadas['Perfil'])
+    self.grupos.append({
+        "ID do Grupo": novo_id,
+        "Perfil": perfil_grupo,
+        "Recursos": ', '.join([str(r) for r in recursos if pd.notna(r)]),
+        "Facil Acesso": "FA" if facil_acesso else "NaN",
+        "Regra": valor_regra
+    })
+    pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
+    print(f"Grupo {novo_id} criado com sucesso!")
+    self.carregar_grupos()
+
+def editar_grupo_modified(self):
+    self.visualizar_grupos()
+    try:
+        grupo_id = int(input("\nDigite o ID do grupo que deseja editar: "))
+        if not any(g['ID do Grupo'] == grupo_id for g in self.grupos):
+            raise ValueError
+        print("\nRegras disponíveis:")
+        print(self.regras_df[['ID', 'Perfil', 'Regra']])
+        regras = input("Digite os novos IDs das regras para esse grupo (separados por vírgula): ").split(',')
+        regras = [int(r.strip()) for r in regras]
+        regras_selecionadas = self.regras_df[self.regras_df['ID'].isin(regras)]
+        recursos = regras_selecionadas['Recursos'].unique()
+        facil_acesso = any(regras_selecionadas['Facil_acesso'] == "FA")
+        valor_regra = regras_selecionadas['Regra'].min()
+        perfil_grupo = ', '.join(regras_selecionadas['Perfil'])
+        for grupo in self.grupos:
+            if grupo['ID do Grupo'] == grupo_id:
+                grupo['Perfil'] = perfil_grupo
+                grupo['Recursos'] = ', '.join([str(r) for r in recursos if pd.notna(r)])
+                grupo['Facil Acesso'] = 'FA' if facil_acesso else 'Não'
+                grupo['Regra'] = valor_regra
+        pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
+        print(f"Grupo {grupo_id} editado com sucesso!")
+        self.carregar_grupos()
+    except ValueError:
+        print(f"Grupo {grupo_id} não encontrado.")
+        return
+
+def excluir_grupo_modified(self):
+    self.visualizar_grupos()
+    try:
+        grupo_id = int(input("\nDigite o ID do grupo que deseja excluir: "))
+        if not any(g['ID do Grupo'] == grupo_id for g in self.grupos):
+            raise ValueError
+        self.grupos = [g for g in self.grupos if g["ID do Grupo"] != grupo_id]
+        pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
+        print(f"Grupo {grupo_id} excluído com sucesso!")
+        self.carregar_grupos()
+    except ValueError:
+        print(f"Grupo {grupo_id} não encontrado.")
+        return
 
 class GruposRegrasCLI:
     def __init__(self):
+        self.regras_df = regras_df
         self.carregar_grupos()
 
     def carregar_grupos(self):
@@ -20,62 +84,14 @@ class GruposRegrasCLI:
         print(pd.DataFrame(self.grupos))
 
     def criar_grupo(self):
-        print("\nRegras disponíveis:")
-        print(regras_df[['Perfil', 'Regra']])
-        regras = input("Digite os IDs das regras que deseja agrupar (separados por vírgula): ").split(',')
-        regras = [int(r.strip()) for r in regras]
-        novo_id = len(self.grupos) + 1
-        qtd_regras = len(regras)
-        regras_selecionadas = regras_df[regras_df['Regra'].isin(regras)]
-        recursos = []
-        for recurso in regras_selecionadas['Recurso(s)']:
-            if pd.notna(recurso):
-                recursos.extend(recurso.split(", "))
-        qtd_recursos = len(set(recursos))
-        self.grupos.append({
-            "Nome do Grupo": f"Grupo {novo_id}",
-            "ID do Grupo": novo_id,
-            "QTD de Regras": qtd_regras,
-            "QTD de Recursos": qtd_recursos
-        })
-        pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
-        print(f"Grupo {novo_id} criado com sucesso!")
-        self.carregar_grupos()
-
+        criar_grupo_modified(self)
+    
     def editar_grupo(self):
-        self.visualizar_grupos()
-        grupo_id = int(input("\nDigite o ID do grupo que deseja editar: "))
-        print("\nRegras disponíveis:")
-        print(regras_df[['Perfil', 'Regra']])
-        regras = input("Digite os novos IDs das regras para esse grupo (separados por vírgula): ").split(',')
-        regras = [int(r.strip()) for r in regras]
-        
-        for grupo in self.grupos:
-            if grupo["ID do Grupo"] == grupo_id:
-                grupo["QTD de Regras"] = len(regras)
-                regras_selecionadas = regras_df[regras_df['Regra'].isin(regras)]
-                recursos = []
-                for recurso in regras_selecionadas['Recurso(s)']:
-                    if pd.notna(recurso):
-                        recursos.extend(recurso.split(", "))
-                grupo["QTD de Recursos"] = len(set(recursos))
-                break
-        else:
-            print(f"Grupo {grupo_id} não encontrado.")
-            return
-        
-        pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
-        print(f"Grupo {grupo_id} editado com sucesso!")
-        self.carregar_grupos()
-
+        editar_grupo_modified(self)
+    
     def excluir_grupo(self):
-        self.visualizar_grupos()
-        grupo_id = int(input("\nDigite o ID do grupo que deseja excluir: "))
-        self.grupos = [g for g in self.grupos if g["ID do Grupo"] != grupo_id]
-        pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
-        print(f"Grupo {grupo_id} excluído com sucesso!")
-        self.carregar_grupos()
-
+        excluir_grupo_modified(self)
+    
     def menu(self):
         while True:
             print("\nMenu:")
@@ -85,7 +101,6 @@ class GruposRegrasCLI:
             print("4. Excluir Grupo")
             print("5. Sair")
             escolha = input("Digite a opção desejada: ")
-
             if escolha == '1':
                 self.visualizar_grupos()
             elif escolha == '2':
@@ -102,5 +117,4 @@ class GruposRegrasCLI:
 if __name__ == "__main__":
     cli = GruposRegrasCLI()
     cli.menu()
-
 
