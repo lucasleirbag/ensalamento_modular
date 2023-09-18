@@ -10,11 +10,12 @@ def criar_grupo_modified(self):
     regras = input("\nDigite os IDs das regras que deseja agrupar (separados por vírgula): ").split(',')
     regras = [int(r.strip()) for r in regras]
     novo_id = len(self.grupos) + 1
-    regras_selecionadas = regras_df[regras_df['ID'].isin(regras)]
+    regras_selecionadas = self.regras_df[self.regras_df['ID'].isin(regras)]
     recursos = regras_selecionadas['Recursos'].unique()
     facil_acesso = any(regras_selecionadas['Facil_acesso'] == "FA")
     valor_regra = regras_selecionadas['Regra'].min()
-    perfil_grupo = ', '.join(regras_selecionadas['Perfil'])
+    perfil_grupo = ', '.join([f"{r['ID']}-{r['Perfil']}" for _, r in regras_selecionadas.iterrows()])
+    
     self.grupos.append({
         "ID do Grupo": novo_id,
         "Perfil": perfil_grupo,
@@ -23,6 +24,19 @@ def criar_grupo_modified(self):
         "Regra": valor_regra
     })
     pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
+    
+    # Atualizar a coluna "Grupo" na base de regras
+    for index, row in self.regras_df.iterrows():
+        if row['ID'] in regras:
+            if pd.isna(row['Grupo']):
+                self.regras_df.at[index, 'Grupo'] = str(novo_id)
+            else:
+                existing_groups = row['Grupo'].split(", ")
+                if str(novo_id) not in existing_groups:
+                    existing_groups.append(str(novo_id))
+                    self.regras_df.at[index, 'Grupo'] = ", ".join(existing_groups)
+    self.regras_df.to_excel("data/regras.xlsx", index=False)
+    
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f"\n--- Grupo {novo_id} criado com sucesso ---")
     time.sleep(2)
@@ -45,14 +59,37 @@ def editar_grupo_modified(self):
         recursos = regras_selecionadas['Recursos'].unique()
         facil_acesso = any(regras_selecionadas['Facil_acesso'] == "FA")
         valor_regra = regras_selecionadas['Regra'].min()
-        perfil_grupo = ', '.join(regras_selecionadas['Perfil'])
+        perfil_grupo = ', '.join([f"{r['ID']}-{r['Perfil']}" for _, r in regras_selecionadas.iterrows()])
+        
+        # Removendo o ID do grupo das regras anteriormente associadas
+        for index, row in self.regras_df.iterrows():
+            existing_groups = str(row['Grupo']).split(", ")
+            if str(grupo_id) in existing_groups:
+                existing_groups.remove(str(grupo_id))
+                self.regras_df.at[index, 'Grupo'] = ", ".join(existing_groups)
+        
+        # Adicionando o ID do grupo às novas regras selecionadas
+        for index, row in self.regras_df.iterrows():
+            if row['ID'] in regras:
+                if pd.isna(row['Grupo']) or row['Grupo'] == "":
+                    self.regras_df.at[index, 'Grupo'] = str(grupo_id)
+                else:
+                    existing_groups = row['Grupo'].split(", ")
+                    if str(grupo_id) not in existing_groups:
+                        existing_groups.append(str(grupo_id))
+                        self.regras_df.at[index, 'Grupo'] = ", ".join(existing_groups)
+        
+        # Atualizando o grupo
         for grupo in self.grupos:
             if grupo['ID do Grupo'] == grupo_id:
                 grupo['Perfil'] = perfil_grupo
                 grupo['Recursos'] = ', '.join([str(r) for r in recursos if pd.notna(r)])
-                grupo['Facil Acesso'] = 'FA' if facil_acesso else 'Não'
+                grupo['Facil Acesso'] = 'FA' if facil_acesso else ''
                 grupo['Regra'] = valor_regra
+        
         pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
+        self.regras_df.to_excel("data/regras.xlsx", index=False)
+        
         os.system('cls' if os.name == 'nt' else 'clear')
         print(f"\n--- Grupo {grupo_id} editado com sucesso ---")
         time.sleep(2)
@@ -71,8 +108,20 @@ def excluir_grupo_modified(self):
         grupo_id = int(input("\nDigite o ID do grupo que deseja excluir: "))
         if not any(g['ID do Grupo'] == grupo_id for g in self.grupos):
             raise ValueError
+        
+        # Removendo o ID do grupo das regras associadas
+        for index, row in self.regras_df.iterrows():
+            existing_groups = str(row['Grupo']).split(", ")
+            if str(grupo_id) in existing_groups:
+                existing_groups.remove(str(grupo_id))
+                self.regras_df.at[index, 'Grupo'] = ", ".join(existing_groups)
+        
+        # Excluindo o grupo
         self.grupos = [g for g in self.grupos if g["ID do Grupo"] != grupo_id]
+        
         pd.DataFrame(self.grupos).to_excel("data/grupos.xlsx", index=False)
+        self.regras_df.to_excel("data/regras.xlsx", index=False)
+        
         os.system('cls' if os.name == 'nt' else 'clear')
         print(f"\n*** Grupo {grupo_id} excluído com sucesso! ***")
         time.sleep(2)
@@ -146,4 +195,3 @@ class GruposRegrasCLI:
 if __name__ == "__main__":
     cli = GruposRegrasCLI()
     cli.menu()
-
