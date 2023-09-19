@@ -1,96 +1,74 @@
 import pandas as pd
 
-# Função para ensalar os candidatos nas salas
-def ensalar_candidatos_otimizado(df_regras, df_candidatos, df_mapa_de_sala):
-    ensalamento = []
-    salas_usadas = set()
-    
-    # Filtrar salas de fácil acesso (térreo ou 1º andar)
-    salas_facil_acesso = df_mapa_de_sala[df_mapa_de_sala['Andar'].isin(['Térreo', '1º Andar'])]
-    
-    for _, regra in df_regras.iterrows():
-        perfil = regra['Perfil']
-        max_per_sala = regra['Regra']
-        facil_acesso = regra['Facil_acesso']
+# Carregar bases de dados
+regras_df = pd.read_excel("data/regras.xlsx")
+grupos_df = pd.read_excel("data/grupos.xlsx")
+candidatos_df = pd.read_excel("data_dist/candidatos.xlsx")
+mapa_de_sala_df = pd.read_excel("data_dist/mapa_de_sala.xlsx")
+
+def ensalamento_completo(df_regras, df_candidatos, df_mapa_de_sala, df_grupos):
+    # 1. Identificar os candidatos que devem ser ensalados em grupo
+    candidatos_ensalados_grupo = set()
+    ensalamento_grupo = []
+    for _, grupo in df_grupos.iterrows():
+        perfis_grupo = [p.split('-')[1].strip() for p in grupo['Perfil'].split(',')]
+        candidatos_grupo = df_candidatos[df_candidatos['Candidato'].isin(perfis_grupo)]
+        total_candidatos_grupo = candidatos_grupo.shape[0]
         
-        if facil_acesso == 'FA':
-            salas_disponiveis = salas_facil_acesso.copy()
+        if grupo['Facil_acesso'] == 'FA':
+            salas_disponiveis = df_mapa_de_sala[df_mapa_de_sala['Andar'].isin(['Térreo', '1º Andar'])].copy()
         else:
             salas_disponiveis = df_mapa_de_sala.copy()
         
-        # Ordenando as salas de acordo com a regra
-        if max_per_sala <= 5:
-            salas_disponiveis = salas_disponiveis.sort_values(by='Capacidade', ascending=True)
-        else:
-            salas_disponiveis = salas_disponiveis.sort_values(by='Capacidade', ascending=False)
+        salas_capacidade_suficiente = salas_disponiveis[salas_disponiveis['Capacidade'] >= total_candidatos_grupo]
         
-        candidatos_perfil = df_candidatos[df_candidatos['Candidato'] == perfil]
+        if not salas_capacidade_suficiente.empty:
+            sala_selecionada = salas_capacidade_suficiente.iloc[0]
+            ensalamento_grupo.append({
+                'Sala': sala_selecionada['Sala'],
+                'Perfil': ', '.join(perfis_grupo),
+                'Quantidade': total_candidatos_grupo,
+                'Capacidade da Sala': sala_selecionada['Capacidade'],
+                'Grupo': f"Grupo {grupo['ID do Grupo']}"
+            })
+            candidatos_ensalados_grupo.update(candidatos_grupo.index.tolist())
+            df_mapa_de_sala = df_mapa_de_sala[df_mapa_de_sala['Sala'] != sala_selecionada['Sala']]
+    
+    # 2. Ensalamento dos candidatos individuais
+    candidatos_individual = df_candidatos.drop(index=candidatos_ensalados_grupo)
+    ensalamento_individual = []
+    for _, regra in df_regras.iterrows():
+        perfil = regra['Perfil']
+        candidatos_perfil = candidatos_individual[candidatos_individual['Candidato'] == perfil]
+        total_candidatos_perfil = candidatos_perfil.shape[0]
         
-        for _, candidato in candidatos_perfil.iterrows():
-            alocado = False
-            for _, sala in salas_disponiveis.iterrows():
-                if sala['Sala'] not in salas_usadas:
-                    salas_usadas.add(sala['Sala'])
-                    ensalamento.append({
-                        'Sala': sala['Sala'],
-                        'Perfil': perfil,
-                        'Quantidade': 1,
-                        'Capacidade': sala['Capacidade']
-                    })
-                    alocado = True
-                    break
-                else:
-                    sala_usada = next((e for e in ensalamento if e['Sala'] == sala['Sala'] and e['Perfil'] == perfil), None)
-                    if sala_usada and (sala_usada['Quantidade'] < min(max_per_sala, sala['Capacidade'])):
-                        sala_usada['Quantidade'] += 1
-                        alocado = True
-                        break
+        while total_candidatos_perfil > 0 and not df_mapa_de_sala.empty:
+            if regra['Facil_acesso'] == 'FA':
+                salas_disponiveis = df_mapa_de_sala[df_mapa_de_sala['Andar'].isin(['Térreo', '1º Andar'])].copy()
+            else:
+                salas_disponiveis = df_mapa_de_sala.copy()
             
-            if not alocado:
-                break
+            sala_selecionada = salas_disponiveis.iloc[0]
+            qtd_ensalada = min(total_candidatos_perfil, sala_selecionada['Capacidade'])
+            ensalamento_individual.append({
+                'Sala': sala_selecionada['Sala'],
+                'Perfil': perfil,
+                'Quantidade': qtd_ensalada,
+                'Capacidade da Sala': sala_selecionada['Capacidade'],
+                'Grupo': 'Individual'
+            })
+            
+            total_candidatos_perfil -= qtd_ensalada
+            df_mapa_de_sala = df_mapa_de_sala[df_mapa_de_sala['Sala'] != sala_selecionada['Sala']]
+    
+    # Consolidando o ensalamento
+    ensalamento_final = ensalamento_grupo + ensalamento_individual
+    return pd.DataFrame(ensalamento_final)
 
-    # Ordenar ensalamento pela numeração das salas
-    ensalamento = sorted(ensalamento, key=lambda x: x['Sala'])
-    return ensalamento, salas_usadas
+# Executando o ensalamento completo
+ensalamento_final_df = ensalamento_completo(regras_df, candidatos_df, mapa_de_sala_df, grupos_df)
+print(ensalamento_final_df)
 
-# Função para gerar o relatório de ensalamento
-def gerar_relatorio(ensalamento, salas_usadas, df_mapa_de_sala, df_candidatos):
-    salas_nao_usadas = set(df_mapa_de_sala['Sala']) - salas_usadas
-    capacidade_nao_usada = df_mapa_de_sala[df_mapa_de_sala['Sala'].isin(salas_nao_usadas)]['Capacidade'].sum()
 
-    candidatos_ensalados = sum([e['Quantidade'] for e in ensalamento])
-    candidatos_nao_ensalados = len(df_candidatos) - candidatos_ensalados
-    perfis_nao_ensalados = set(df_candidatos['Candidato']) - set([e['Perfil'] for e in ensalamento])
-
-    escola_info = df_mapa_de_sala.iloc[0]
-    id_escola = escola_info['IdLocalProva']
-    nome_escola = escola_info['LocalProva']
-    endereco_escola = f"{escola_info['UF']}, {escola_info['Cidade']}, {escola_info['Bairro']}"
-
-    capacidade_total = df_mapa_de_sala['Capacidade'].sum()
-    pessoas_ensaladas = sum([e['Quantidade'] for e in ensalamento])
-
-    resumo_ensalamento = f"ID da Escola: {id_escola}\nNome da Escola: {nome_escola}\nEndereço da Escola: {endereco_escola}\nCapacidade Total da Escola: {capacidade_total}\nNúmero de Pessoas Ensaladas na Escola: {pessoas_ensaladas}\n" + "-"*60 + "\n"
-
-    for ensala in ensalamento:
-        resumo_ensalamento += f"Sala: {ensala['Sala']}\nPerfis Ensalados: {ensala['Perfil']}: {ensala['Quantidade']}\nPessoas Ensaladas: {ensala['Quantidade']}\nCapacidade da Sala: {ensala['Capacidade']}\n" + "-"*60 + "\n"
-
-    if salas_nao_usadas:
-        resumo_ensalamento += f"\nSalas não utilizadas: {', '.join(map(str, salas_nao_usadas))}\nCapacidade não utilizada: {capacidade_nao_usada}\n"
-
-    if candidatos_nao_ensalados:
-        resumo_ensalamento += f"\nCandidatos não ensalados: {candidatos_nao_ensalados}\nPerfis não ensalados: {', '.join(perfis_nao_ensalados)}\n"
-
-    return resumo_ensalamento
-
-# Carregar os arquivos
-df_regras = pd.read_excel("data/regras.xlsx")
-df_candidatos = pd.read_excel("data_dist/candidatos.xlsx")
-df_mapa_de_sala = pd.read_excel("data_dist/mapa_de_sala.xlsx")
-
-# Executar ensalamento otimizado e gerar relatório
-ensalamento_otimizado, salas_usadas_otimizado = ensalar_candidatos_otimizado(df_regras, df_candidatos, df_mapa_de_sala)
-resumo = gerar_relatorio(ensalamento_otimizado, salas_usadas_otimizado, df_mapa_de_sala, df_candidatos)
-print(resumo)
 
 
