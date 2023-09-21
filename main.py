@@ -2,13 +2,11 @@ import pandas as pd
 import tabulate
 
 def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df_grupos):
-
-    # Inicialização
     candidatos_ensalados_grupo = set()
     ensalamento_grupo = []
     
     for _, grupo in df_grupos.iterrows():
-        perfis_grupo = [p.split('-')[1].strip() for p in grupo['Perfil'].split(',')]
+        perfis_grupo = [p.split('-')[1].strip() if '-' in p else p.strip() for p in grupo['Perfil'].split(',')]
         candidatos_grupo = df_candidatos[df_candidatos['Candidato'].isin(perfis_grupo)]
         
         # Checando os recursos necessários para o grupo
@@ -18,6 +16,10 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
         candidatos_grupo = candidatos_grupo[candidatos_grupo["Recursos"].apply(lambda x: any([rec in str(x) for rec in recursos_necessarios]))]
         
         total_candidatos_grupo = candidatos_grupo.shape[0]
+        
+        # Se houver apenas um candidato no grupo, continue e trate-o como individual
+        if total_candidatos_grupo == 1:
+            continue
         
         if grupo['Facil_acesso'] == 'FA':
             salas_disponiveis = df_mapa_de_sala[df_mapa_de_sala['Andar'].isin(['Térreo', '1º Andar'])].copy()
@@ -30,7 +32,7 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
             sala_selecionada = salas_capacidade_suficiente.iloc[0]
             ensalamento_grupo.append({
                 'Sala': sala_selecionada['Sala'],
-                'Perfil': ', '.join(perfis_grupo),
+                'Perfil': ', '.join(candidatos_grupo['Candidato']),
                 'Quantidade': total_candidatos_grupo,
                 'Capacidade da Sala': sala_selecionada['Capacidade'],
                 'Grupo': f"Grupo {grupo['ID do Grupo']}",
@@ -39,10 +41,6 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
             })
             candidatos_ensalados_grupo.update(candidatos_grupo.index.tolist())
             df_mapa_de_sala = df_mapa_de_sala[df_mapa_de_sala['Sala'] != sala_selecionada['Sala']]
-    
-    # Ensalamento dos candidatos individuais
-    candidatos_individual = df_candidatos.drop(index=candidatos_ensalados_grupo)
-    ensalamento_individual = []
     
     # Ensalamento dos candidatos individuais
     candidatos_individual = df_candidatos.drop(index=candidatos_ensalados_grupo)
