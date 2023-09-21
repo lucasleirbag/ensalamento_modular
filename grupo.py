@@ -6,7 +6,7 @@ regras_df = pd.read_excel("data/regras.xlsx")
 
 def criar_grupo_modified(self):
     print("\nRegras disponíveis:")
-    print(self.regras_df[['ID', 'Perfil', 'Regra']].to_string(index=False))
+    print(self.regras_df[['ID', 'Perfil', 'Recursos', 'Regra']].to_string(index=False))
     regras = input("\nDigite os IDs das regras que deseja agrupar (separados por vírgula): ").split(',')
     regras = [int(r.strip()) for r in regras]
     novo_id = len(self.grupos) + 1
