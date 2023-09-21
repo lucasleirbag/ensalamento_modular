@@ -2,23 +2,21 @@ import pandas as pd
 import tabulate
 
 def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df_grupos):
-    candidatos_ensalados_grupo = set()
     ensalamento_grupo = []
-    
+    candidatos_ensalados_grupo = set()
+
     for _, grupo in df_grupos.iterrows():
         perfis_grupo = [p.split('-')[1].strip() if '-' in p else p.strip() for p in grupo['Perfil'].split(',')]
         candidatos_grupo = df_candidatos[df_candidatos['Candidato'].isin(perfis_grupo)]
         
         # Checando os recursos necessários para o grupo
         recursos_necessarios = str(grupo["Recursos"]).split(', ')
-        
-        # Filtrando candidatos que não possuem pelo menos um dos recursos do grupo
         candidatos_grupo = candidatos_grupo[candidatos_grupo["Recursos"].apply(lambda x: any([rec in str(x) for rec in recursos_necessarios]))]
         
         total_candidatos_grupo = candidatos_grupo.shape[0]
         
         # Se houver apenas um candidato no grupo, continue e trate-o como individual
-        if total_candidatos_grupo == 1:
+        if total_candidatos_grupo <= 1:
             continue
         
         if grupo['Facil_acesso'] == 'FA':
@@ -32,7 +30,7 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
             sala_selecionada = salas_capacidade_suficiente.iloc[0]
             ensalamento_grupo.append({
                 'Sala': sala_selecionada['Sala'],
-                'Perfil': ', '.join(candidatos_grupo['Candidato']),
+                'Perfil': ', '.join(set(perfis_grupo)),  # Ajuste aqui
                 'Quantidade': total_candidatos_grupo,
                 'Capacidade da Sala': sala_selecionada['Capacidade'],
                 'Grupo': f"Grupo {grupo['ID do Grupo']}",
@@ -41,7 +39,25 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
             })
             candidatos_ensalados_grupo.update(candidatos_grupo.index.tolist())
             df_mapa_de_sala = df_mapa_de_sala[df_mapa_de_sala['Sala'] != sala_selecionada['Sala']]
-    
+        else:
+            # If there's no single room with enough capacity, distribute the candidates across multiple rooms
+            while not candidatos_grupo.empty and not salas_disponiveis.empty:
+                sala_selecionada = salas_disponiveis.iloc[0]
+                candidatos_selecionados = candidatos_grupo.head(sala_selecionada['Capacidade'])
+                
+                ensalamento_grupo.append({
+                    'Sala': sala_selecionada['Sala'],
+                    'Perfil': ', '.join(set(perfis_grupo)),  # Ajuste aqui
+                    'Quantidade': candidatos_selecionados.shape[0],
+                    'Capacidade da Sala': sala_selecionada['Capacidade'],
+                    'Grupo': f"Grupo {grupo['ID do Grupo']}",
+                    'Recursos': ', '.join(recursos_necessarios) if recursos_necessarios[0] != 'nan' else '',
+                    'Facil Acesso': 'FA' if grupo['Facil_acesso'] == 'FA' else ''
+                })
+                candidatos_ensalados_grupo.update(candidatos_selecionados.index.tolist())
+                candidatos_grupo = candidatos_grupo.drop(candidatos_selecionados.index)
+                salas_disponiveis = salas_disponiveis.drop(sala_selecionada.name)
+
     # Ensalamento dos candidatos individuais
     candidatos_individual = df_candidatos.drop(index=candidatos_ensalados_grupo)
     ensalamento_individual = []
@@ -54,7 +70,7 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
         # Filtrando candidatos que atendem ao perfil e aos recursos da regra
         candidatos_perfil = candidatos_individual[(candidatos_individual['Candidato'] == perfil) & 
                                                   (candidatos_individual["Recursos"].apply(lambda x: any([rec in str(x) for rec in recursos_regra])))]
-        
+
         # Se não há candidatos que atendem ao perfil e aos recursos da regra, continue
         if candidatos_perfil.empty:
             continue
@@ -146,9 +162,11 @@ df_grupos = pd.read_excel("data/grupos.xlsx")
 escola_info = df_mapa_de_sala.iloc[0][['IdLocalProva', 'UF', 'Cidade', 'Bairro', 'LocalProva']]
 capacidade_total = df_mapa_de_sala['Capacidade'].sum()
 
-# Executando o ensalamento
-ensalamento_resultado, salas_restantes, candidatos_nao_ensalados = ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df_grupos)
+ensalamento_resultado, salas_nao_utilizadas, candidatos_nao_ensalados = ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df_grupos)
 capacidade_utilizada = ensalamento_resultado['Quantidade'].sum()
+
+candidatos_nao_ensalados = df_candidatos.loc[~df_candidatos.index.isin(ensalamento_resultado.index)]
+salas_restantes = df_mapa_de_sala.loc[~df_mapa_de_sala['Sala'].isin(ensalamento_resultado['Sala'])]
 
 # Identificar candidatos sem regra definida
 candidatos_unicos = set(df_candidatos['Candidato'])
