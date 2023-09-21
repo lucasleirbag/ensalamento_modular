@@ -2,10 +2,6 @@ import pandas as pd
 import tabulate
 
 def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df_grupos):
-    # Inicializando variáveis
-    salas_nao_usadas = []
-    candidatos_sem_ensalamento = []
-    candidatos_sem_regra = []
 
     # Inicialização
     candidatos_ensalados_grupo = set()
@@ -47,11 +43,21 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
     # Ensalamento dos candidatos individuais
     candidatos_individual = df_candidatos.drop(index=candidatos_ensalados_grupo)
     ensalamento_individual = []
+    
+    # Ensalamento dos candidatos individuais
+    candidatos_individual = df_candidatos.drop(index=candidatos_ensalados_grupo)
+    ensalamento_individual = []
+    
     for _, regra in df_regras.iterrows():
         perfil = regra['Perfil']
-        candidatos_perfil = candidatos_individual[candidatos_individual['Candidato'] == perfil]
+        recursos_regra = str(regra["Recursos"]).split(', ')
+        maximo_por_sala = regra['Regra']
         
-        # Se não há candidatos para o perfil da regra, continue
+        # Filtrando candidatos que atendem ao perfil e aos recursos da regra
+        candidatos_perfil = candidatos_individual[(candidatos_individual['Candidato'] == perfil) & 
+                                                  (candidatos_individual["Recursos"].apply(lambda x: any([rec in str(x) for rec in recursos_regra])))]
+        
+        # Se não há candidatos que atendem ao perfil e aos recursos da regra, continue
         if candidatos_perfil.empty:
             continue
         
@@ -64,7 +70,7 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
                 salas_disponiveis = df_mapa_de_sala.copy()
             
             sala_selecionada = salas_disponiveis.iloc[0]
-            qtd_ensalada = min(total_candidatos_perfil, sala_selecionada['Capacidade'])
+            qtd_ensalada = min(total_candidatos_perfil, sala_selecionada['Capacidade'], maximo_por_sala)
             ensalamento_individual.append({
                 'Sala': sala_selecionada['Sala'],
                 'Perfil': perfil,
@@ -77,8 +83,11 @@ def ensalamento_completo_corrigido(df_regras, df_candidatos, df_mapa_de_sala, df
             
             total_candidatos_perfil -= qtd_ensalada
             df_mapa_de_sala = df_mapa_de_sala[df_mapa_de_sala['Sala'] != sala_selecionada['Sala']]
-            # Atualizando o dataframe de candidatos_individual para remover os candidatos já ensalados
-            candidatos_individual = candidatos_individual.drop(index=candidatos_perfil.index[:qtd_ensalada])
+            
+            # Removendo candidatos ensalados, mas verificando se o índice realmente existe
+            indices_a_remover = candidatos_perfil.index[:qtd_ensalada].tolist()
+            indices_existentes = candidatos_individual.index.intersection(indices_a_remover)
+            candidatos_individual = candidatos_individual.drop(index=indices_existentes)
     
     # Consolidando o ensalamento
     ensalamento_final = ensalamento_grupo + ensalamento_individual
